@@ -250,7 +250,6 @@ function readInputs(){
     eChurn:       +$('eChurn').value/100,
     sChurn:       +$('sChurn').value/100,
     margin:       0.40,
-    floor:        10,
   };
 }
 
@@ -271,7 +270,7 @@ function runModel(p){
     let arpu=0, marginActive=0;
     for(const s of segs){
       arpu         += s.w * s.spend;
-      marginActive += s.w * Math.max(p.margin * s.spend, p.floor);
+      marginActive += s.w * p.margin * s.spend;
     }
     const margin = p.breakage * arpu + (1 - p.breakage) * marginActive;
     return {arpu, margin, cost: arpu - margin};
