@@ -129,6 +129,11 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
     <input type="range" id="ovAmt" min="0" max="50" step="1" value="15">
   </div>
   <div class="ctl">
+    <label>Breakage <span class="v" id="dBrk">10%</span></label>
+    <input type="range" id="breakage" min="0" max="40" step="1" value="10">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">% of paying users with zero COGS (pay but don&rsquo;t use)</div>
+  <div class="ctl">
     <label>Early Churn (mo 1-3) <span class="v" id="dEC">12%</span></label>
     <input type="range" id="eChurn" min="1" max="30" step="0.5" value="12">
   </div>
@@ -222,6 +227,7 @@ function readInputs(){
     ppMix:        1-pm,
     ovRate:       +$('ovRate').value/100,
     ovAmt:        +$('ovAmt').value,
+    breakage:     +$('breakage').value/100,
     eChurn:       +$('eChurn').value/100,
     sChurn:       +$('sChurn').value/100,
     margin:       0.40,
@@ -238,12 +244,15 @@ function runModel(p){
     {w: p.ppMix  * (1-p.ovRate),  spend: p.ppPrice},
     {w: p.ppMix  * p.ovRate,      spend: p.ppPrice + p.ovAmt},
   ];
-  let arpu=0, margin=0;
+  let arpu=0, marginActive=0;
   for(const s of segs){
-    arpu   += s.w * s.spend;
-    margin += s.w * Math.max(p.margin * s.spend, p.floor);
+    arpu         += s.w * s.spend;
+    marginActive += s.w * Math.max(p.margin * s.spend, p.floor);
   }
-  const costToServe = arpu - margin; // monthly COGS for a retained paid user
+  // Breakage: some % of paying users incur zero COGS (pure revenue)
+  // Blended margin = breakage% * arpu (100% margin) + (1-breakage%) * active margin
+  const margin = p.breakage * arpu + (1 - p.breakage) * marginActive;
+  const costToServe = arpu - margin;
 
   // Trial economics (per user)
   const trialCostMo = p.trialUsage * ENTITLEMENT;       // cost to serve per trial month
@@ -429,6 +438,7 @@ function updateUI(r,p){
     ['',''],
     ['Upsell Rate',             f2(p.upsell*100)+'%'],
     ['ARPU (post-conversion)',  '$'+f2(r.arpu)+'/mo'],
+    ['Breakage',                f0(p.breakage*100)+'% (pay but zero COGS)'],
     ['Gross Margin / User / Mo','$'+f2(r.margin)+'/mo'],
     ['COGS / User / Mo',        '$'+f2(r.costToServe)+'/mo'],
     ['',''],
@@ -459,6 +469,7 @@ function sync(){
   $('dMix').textContent   = $('proMix').value+'%';
   $('dOvR').textContent   = $('ovRate').value+'%';
   $('dOvA').textContent   = '$'+f0(+$('ovAmt').value)+'/mo';
+  $('dBrk').textContent   = $('breakage').value+'%';
   $('dEC').textContent    = $('eChurn').value+'%';
   $('dSC').textContent    = $('sChurn').value+'%';
 }
