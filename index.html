@@ -134,6 +134,11 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
     <input type="range" id="ovAmt" min="0" max="50" step="1" value="15">
   </div>
   <div class="ctl">
+    <label>Overage Growth <span class="v" id="dOvG">15%/yr</span></label>
+    <input type="range" id="ovGrowth" min="0" max="50" step="1" value="15">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">Annual growth in overage rate &amp; amount as usage deepens</div>
+  <div class="ctl">
     <label>Breakage <span class="v" id="dBrk">10%</span></label>
     <input type="range" id="breakage" min="0" max="40" step="1" value="10">
   </div>
@@ -178,7 +183,7 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
 
   <div class="chart-card">
     <h3>Monthly Revenue, Cost &amp; Net per Retained User</h3>
-    <div class="chart-sub">Unit economics for users who convert and stay &mdash; not probability-weighted</div>
+    <div class="chart-sub">Unit economics for users who convert and stay &mdash; overage grows over time</div>
     <canvas id="c1"></canvas>
   </div>
 
@@ -233,6 +238,7 @@ function readInputs(){
     ppMix:        1-pm,
     ovRate:       +$('ovRate').value/100,
     ovAmt:        +$('ovAmt').value,
+    ovGrowth:     +$('ovGrowth').value/100,
     breakage:     +$('breakage').value/100,
     eChurn:       +$('eChurn').value/100,
     sChurn:       +$('sChurn').value/100,
@@ -243,29 +249,36 @@ function readInputs(){
 
 // ── Model ────────────────────────────────────────────────────────────────
 function runModel(p){
-  // ARPU & gross margin per retained user (plan-mix weighted)
-  const segs = [
-    {w: p.proMix * (1-p.ovRate),  spend: p.proPrice},
-    {w: p.proMix * p.ovRate,      spend: p.proPrice + p.ovAmt},
-    {w: p.ppMix  * (1-p.ovRate),  spend: p.ppPrice},
-    {w: p.ppMix  * p.ovRate,      spend: p.ppPrice + p.ovAmt},
-  ];
-  let arpu=0, marginActive=0;
-  for(const s of segs){
-    arpu         += s.w * s.spend;
-    marginActive += s.w * Math.max(p.margin * s.spend, p.floor);
+  // Helper: compute ARPU & margin for a given month post-conversion
+  // Overage rate and amount grow annually as users deepen usage
+  const monthlyOvGrowth = Math.pow(1 + p.ovGrowth, 1/12);
+  function econAt(m){
+    const ovR = Math.min(p.ovRate * Math.pow(monthlyOvGrowth, m), 0.95);
+    const ovA = p.ovAmt * Math.pow(monthlyOvGrowth, m);
+    const segs = [
+      {w: p.proMix * (1-ovR),  spend: p.proPrice},
+      {w: p.proMix * ovR,      spend: p.proPrice + ovA},
+      {w: p.ppMix  * (1-ovR),  spend: p.ppPrice},
+      {w: p.ppMix  * ovR,      spend: p.ppPrice + ovA},
+    ];
+    let arpu=0, marginActive=0;
+    for(const s of segs){
+      arpu         += s.w * s.spend;
+      marginActive += s.w * Math.max(p.margin * s.spend, p.floor);
+    }
+    const margin = p.breakage * arpu + (1 - p.breakage) * marginActive;
+    return {arpu, margin, cost: arpu - margin};
   }
-  // Breakage: some % of paying users incur zero COGS (pure revenue)
-  // Blended margin = breakage% * arpu (100% margin) + (1-breakage%) * active margin
-  const margin = p.breakage * arpu + (1 - p.breakage) * marginActive;
-  const costToServe = arpu - margin;
+
+  // Baseline (month 0) for display
+  const e0 = econAt(0);
 
   // Trial economics (per user)
-  const trialCostMo = p.trialUsage * ENTITLEMENT;       // cost to serve per trial month
-  const trialNetMo  = p.studentPrice - trialCostMo;     // net per trial month
+  const trialCostMo = p.trialUsage * ENTITLEMENT;
+  const trialNetMo  = p.studentPrice - trialCostMo;
   const totalTrialCost = p.trialDur * trialCostMo;
   const totalTrialRev  = p.trialDur * p.studentPrice;
-  const cac = totalTrialCost - totalTrialRev;            // net cost (CAC)
+  const cac = totalTrialCost - totalTrialRev;
 
   // Retention curve (post-conversion)
   const postMonths = HORIZON - p.trialDur;
@@ -278,17 +291,17 @@ function runModel(p){
   // Monthly discount factor from annual WACC
   const monthlyDiscount = Math.pow(1 + p.wacc, 1/12);
 
-  // LTV if converted (sum of discounted, retention-weighted monthly margin)
+  // LTV if converted (sum of discounted, retention-weighted monthly margin with overage growth)
   let ltvConv = 0;
-  for(let m=0; m<postMonths; m++) ltvConv += ret[m] * margin / Math.pow(monthlyDiscount, m);
+  for(let m=0; m<postMonths; m++) ltvConv += ret[m] * econAt(m).margin / Math.pow(monthlyDiscount, m);
 
   // Expected LTV per trial user
   const eLtv = p.upsell * ltvConv;
-  const ltvCac = cac > 0 ? eLtv / cac : (cac === 0 ? Infinity : Infinity);
+  const ltvCac = cac > 0 ? eLtv / cac : Infinity;
 
   // ── Series for charts ──────────────────────────────────────────────────
 
-  // Chart 1: per retained user (not probability-weighted)
+  // Chart 1: per retained user (not probability-weighted) — shows overage growth
   const retRevMo  = new Float64Array(HORIZON);
   const retCostMo = new Float64Array(HORIZON);
   const retNetMo  = new Float64Array(HORIZON);
@@ -298,21 +311,20 @@ function runModel(p){
     retNetMo[m]  = p.studentPrice - trialCostMo;
   }
   for(let m=0; m<postMonths; m++){
-    retRevMo[p.trialDur+m]  = arpu;
-    retCostMo[p.trialDur+m] = costToServe;
-    retNetMo[p.trialDur+m]  = margin;
+    const e = econAt(m);
+    retRevMo[p.trialDur+m]  = e.arpu;
+    retCostMo[p.trialDur+m] = e.cost;
+    retNetMo[p.trialDur+m]  = e.margin;
   }
 
   // Chart 3: cumulative LTV per trial user (expected, probability-weighted, discounted)
   const cumLtv = new Float64Array(HORIZON);
-  // Trial phase: accumulate trial net (discounted)
   for(let m=0; m<p.trialDur; m++){
     cumLtv[m] = (m===0 ? 0 : cumLtv[m-1]) + trialNetMo / Math.pow(monthlyDiscount, m);
   }
-  // Post-conversion: add discounted expected monthly margin
   for(let m=0; m<postMonths; m++){
     const absMonth = p.trialDur + m;
-    cumLtv[absMonth] = cumLtv[absMonth-1] + p.upsell * ret[m] * margin / Math.pow(monthlyDiscount, absMonth);
+    cumLtv[absMonth] = cumLtv[absMonth-1] + p.upsell * ret[m] * econAt(m).margin / Math.pow(monthlyDiscount, absMonth);
   }
 
   // Chart 4: % of trial cohort still active & paying
@@ -325,7 +337,7 @@ function runModel(p){
   for(let m=0; m<HORIZON; m++){ if(cumLtv[m]>=0){breakEven=m+1;break;} }
 
   return {
-    arpu, margin, costToServe, trialCostMo, cac,
+    arpu: e0.arpu, margin: e0.margin, costToServe: e0.cost, trialCostMo, cac,
     totalTrialCost, totalTrialRev,
     ltvConv, eLtv, ltvCac, breakEven,
     totalProfit: cumLtv[HORIZON-1],
@@ -449,6 +461,8 @@ function updateUI(r,p){
     ['',''],
     ['Upsell Rate',             f2(p.upsell*100)+'%'],
     ['ARPU (post-conversion)',  '$'+f2(r.arpu)+'/mo'],
+    ['Avg Overage',             '$'+f2(p.ovAmt)+'/mo (initial)'],
+    ['Overage Growth',          f0(p.ovGrowth*100)+'%/yr'],
     ['Breakage',                f0(p.breakage*100)+'% (pay but zero COGS)'],
     ['Gross Margin / User / Mo','$'+f2(r.margin)+'/mo'],
     ['COGS / User / Mo',        '$'+f2(r.costToServe)+'/mo'],
@@ -481,6 +495,7 @@ function sync(){
   $('dMix').textContent   = $('proMix').value+'%';
   $('dOvR').textContent   = $('ovRate').value+'%';
   $('dOvA').textContent   = '$'+f0(+$('ovAmt').value)+'/mo';
+  $('dOvG').textContent   = $('ovGrowth').value+'%/yr';
   $('dBrk').textContent   = $('breakage').value+'%';
   $('dEC').textContent    = $('eChurn').value+'%';
   $('dSC').textContent    = $('sChurn').value+'%';
