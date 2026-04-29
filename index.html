@@ -239,7 +239,7 @@ input[type="range"]::-moz-range-thumb {
       <canvas id="cCum"></canvas>
     </div>
     <div class="chart-card">
-      <h3>Expected Monthly Profit per User</h3>
+      <h3>Monthly Revenue, Cost &amp; Net per User</h3>
       <canvas id="cMonth"></canvas>
     </div>
     <div class="chart-card">
@@ -328,19 +328,24 @@ function runModel(p) {
   // LTV:CAC
   const ltvToCac = cac > 0 ? expectedLtv / cac : Infinity;
 
-  // Monthly P&L per user (expected value)
-  const monthlyPnl = new Float64Array(HORIZON);
-  const cumPnl     = new Float64Array(HORIZON);
+  // Monthly cost, revenue, and net P&L per user (expected value)
+  const monthlyCost = new Float64Array(HORIZON);
+  const monthlyRev  = new Float64Array(HORIZON);
+  const monthlyPnl  = new Float64Array(HORIZON);
+  const cumPnl      = new Float64Array(HORIZON);
 
   // Trial phase: costs spread over trial months, marketing in month 0
   for (let m = 0; m < p.trialDur; m++) {
-    let cost = p.cogs;
-    if (m === 0) cost += p.mktgCac;
-    monthlyPnl[m] = p.studentPrice - cost;
+    monthlyCost[m] = p.cogs + (m === 0 ? p.mktgCac : 0);
+    monthlyRev[m]  = p.studentPrice;
+    monthlyPnl[m]  = monthlyRev[m] - monthlyCost[m];
   }
-  // Post-trial: expected monthly profit = P(convert) * retention * profit
+  // Post-trial: expected revenue & cost based on upsell probability & retention
   for (let m = 0; m < postMonths; m++) {
-    monthlyPnl[p.trialDur + m] = p.upsell * retention[m] * profitPerUser;
+    const prob = p.upsell * retention[m];
+    monthlyRev[p.trialDur + m]  = prob * arpu;
+    monthlyCost[p.trialDur + m] = prob * (arpu - profitPerUser);
+    monthlyPnl[p.trialDur + m]  = prob * profitPerUser;
   }
 
   cumPnl[0] = monthlyPnl[0];
@@ -358,6 +363,8 @@ function runModel(p) {
     arpu, profitPerUser, cac, ltvConverted, expectedLtv, ltvToCac,
     breakEven, totalProfit, roi, trialCogs, trialRev,
     monthlyPnl: Array.from(monthlyPnl),
+    monthlyCost: Array.from(monthlyCost),
+    monthlyRev: Array.from(monthlyRev),
     cumPnl:     Array.from(cumPnl),
     retention:  Array.from(retention),
   };
@@ -382,7 +389,22 @@ function initCharts() {
     type:'bar', data:{labels:[],datasets:[{data:[],backgroundColor:[]}]}, options:cOpts($fmt),
   });
   chMonth = new Chart($('cMonth'), {
-    type:'bar', data:{labels:[],datasets:[{data:[],backgroundColor:[]}]}, options:cOpts($fmt),
+    type:'bar',
+    data:{labels:[],datasets:[
+      {label:'Revenue', data:[], backgroundColor:'rgba(121,217,185,0.6)', stack:'s', order:2},
+      {label:'Cost',    data:[], backgroundColor:'rgba(253,113,175,0.6)', stack:'s', order:2},
+      {label:'Net',     data:[], type:'line', borderColor:'#7B68EE', backgroundColor:'transparent',
+       borderWidth:2, pointRadius:0, tension:.3, order:1},
+    ]},
+    options:{
+      ...cOpts($fmt),
+      plugins:{legend:{display:true, labels:{color:'#8B949E',font:{size:10},boxWidth:12,padding:8}}},
+      scales:{
+        ...cOpts($fmt).scales,
+        x:{...cOpts($fmt).scales.x, stacked:true},
+        y:{...cOpts($fmt).scales.y, stacked:true},
+      },
+    },
   });
   chRet = new Chart($('cRet'), {
     type:'line',
@@ -406,8 +428,9 @@ function updateCharts(r, p) {
   chCum.update();
 
   chMonth.data.labels = mo;
-  chMonth.data.datasets[0].data = r.monthlyPnl;
-  chMonth.data.datasets[0].backgroundColor = r.monthlyPnl.map(v=>v<0?'#FD71AF':'#79D9B9');
+  chMonth.data.datasets[0].data = r.monthlyRev;                         // Revenue (positive)
+  chMonth.data.datasets[1].data = r.monthlyCost.map(v => -v);           // Cost (negative)
+  chMonth.data.datasets[2].data = r.monthlyPnl;                         // Net line
   chMonth.update();
 
   chRet.data.labels = postMo;
