@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free Tier Model - Copilot</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0D1117;--surface:#161B22;--card:#1C2128;--border:#30363D;
+  --text:#E6EDF3;--muted:#8B949E;--purple:#7B68EE;--blue:#49CCF9;
+  --teal:#79D9B9;--pink:#FD71AF;--orange:#FFB08E;--green:#3FB950;
+  --red:#F85149;--yellow:#D29922;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+.header{background:linear-gradient(135deg,#0a2040,var(--bg));border-bottom:1px solid var(--border);padding:16px 28px}
+.header h1{font-size:18px;font-weight:600;background:linear-gradient(90deg,var(--blue),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .sub{color:var(--muted);font-size:12px}
+.app{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 58px)}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto;max-height:calc(100vh - 58px)}
+.sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--blue);margin:22px 0 10px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.sec:first-child{margin-top:0}
+.ctl{margin-bottom:12px}
+.ctl label{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px}
+.ctl .v{font-weight:700;color:var(--text);font-size:12px;min-width:52px;text-align:right;background:var(--card);padding:2px 6px;border-radius:4px;font-variant-numeric:tabular-nums}
+input[type="range"]{-webkit-appearance:none;width:100%;height:4px;background:var(--border);border-radius:2px;outline:none;margin-top:2px}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;transition:transform .1s}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;border:none}
+.readout{background:rgba(73,204,249,0.06);border:1px solid rgba(73,204,249,0.18);border-radius:8px;padding:10px 12px;margin-top:14px}
+.readout-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0}
+.readout-row .rl{color:var(--muted)}
+.readout-row .rv{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+.main{padding:20px 28px;overflow-y:auto;max-height:calc(100vh - 58px)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+.kpi .kl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.kpi .kv{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi .ks{font-size:10px;color:var(--muted);margin-top:3px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+.chart-card h3{font-size:12px;font-weight:600;margin-bottom:4px}
+.chart-card .chart-sub{font-size:10px;color:var(--muted);margin-bottom:10px}
+.chart-card canvas{width:100%!important;height:220px!important}
+.dtl{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:6px}
+.dtl h3{font-size:12px;font-weight:600;margin-bottom:10px}
+.dtl table{width:100%;border-collapse:collapse;font-size:12px}
+.dtl th{text-align:left;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--border);color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.dtl td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.dtl td:last-child{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.dtl tr:hover{background:rgba(73,204,249,0.04)}
+.sep td{padding:1px;background:var(--border)}
+@media(max-width:900px){
+  .app{grid-template-columns:1fr}
+  .sidebar{max-height:none;border-right:none;border-bottom:1px solid var(--border)}
+  .kpis{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Free Tier Model</h1>
+  <div class="sub">Per-user unit economics &mdash; Copilot Free &rarr; paid conversion</div>
+</div>
+
+<div class="app">
+
+<div class="sidebar">
+
+  <div class="sec">Free Tier Structure</div>
+  <div class="ctl">
+    <label>Free COGS / Mo <span class="v" id="dFreeCogs">$3.00</span></label>
+    <input type="range" id="freeCogs" min="0.5" max="10" step="0.25" value="3">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">Monthly cost to serve one free user</div>
+  <div class="ctl">
+    <label>Monthly Conversion <span class="v" id="dConv">2%</span></label>
+    <input type="range" id="convRate" min="0.5" max="15" step="0.5" value="2">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">% of free users who convert to paid each month</div>
+  <div class="ctl">
+    <label>Free Tier Churn <span class="v" id="dFreeChurn">3%</span></label>
+    <input type="range" id="freeChurn" min="0" max="15" step="0.5" value="3">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">% who leave free tier without converting</div>
+  <div class="ctl">
+    <label>WACC <span class="v" id="dWacc">10%</span></label>
+    <input type="range" id="wacc" min="0" max="20" step="0.5" value="10">
+  </div>
+
+  <div class="sec">Post-Conversion Metrics</div>
+  <div class="ctl">
+    <label>Pro Price <span class="v" id="dPro">$10/mo</span></label>
+    <input type="range" id="proPrice" min="5" max="30" step="1" value="10">
+  </div>
+  <div class="ctl">
+    <label>Pro+ Price <span class="v" id="dPP">$39/mo</span></label>
+    <input type="range" id="ppPrice" min="15" max="80" step="1" value="39">
+  </div>
+  <div class="ctl">
+    <label>Pro Share <span class="v" id="dMix">90%</span></label>
+    <input type="range" id="proMix" min="0" max="100" step="5" value="90">
+  </div>
+  <div class="ctl">
+    <label>Overage Rate <span class="v" id="dOvR">10%</span></label>
+    <input type="range" id="ovRate" min="0" max="50" step="1" value="10">
+  </div>
+  <div class="ctl">
+    <label>Avg Overage <span class="v" id="dOvA">$15/mo</span></label>
+    <input type="range" id="ovAmt" min="0" max="50" step="1" value="15">
+  </div>
+  <div class="ctl">
+    <label>Overage Growth <span class="v" id="dOvG">5%/yr</span></label>
+    <input type="range" id="ovGrowth" min="0" max="50" step="1" value="5">
+  </div>
+  <div class="ctl">
+    <label>Breakage <span class="v" id="dBrk">10%</span></label>
+    <input type="range" id="breakage" min="0" max="40" step="1" value="10">
+  </div>
+  <div class="ctl">
+    <label>Avg COGS % of Revenue <span class="v" id="dCogsPct">80%</span></label>
+    <input type="range" id="cogsPct" min="10" max="90" step="1" value="80">
+  </div>
+  <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">For active paid users (non-breakage)</div>
+  <div class="ctl">
+    <label>Early Churn (mo 1-3) <span class="v" id="dEC">15%</span></label>
+    <input type="range" id="eChurn" min="1" max="30" step="0.5" value="15">
+  </div>
+  <div class="ctl">
+    <label>Steady Churn (mo 4+) <span class="v" id="dSC">2%</span></label>
+    <input type="range" id="sChurn" min="0.5" max="15" step="0.5" value="2">
+  </div>
+
+  <div class="readout">
+    <div class="readout-row"><span class="rl">ARPU (paid)</span><span class="rv" id="rArpu">&mdash;</span></div>
+    <div class="readout-row"><span class="rl">Margin / Paid User</span><span class="rv" id="rMargin">&mdash;</span></div>
+    <div class="readout-row"><span class="rl">P(ever convert)</span><span class="rv" id="rPconv">&mdash;</span></div>
+  </div>
+
+</div>
+
+<!-- Dashboard -->
+<div class="main">
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kl">LTV per User</div>
+      <div class="kv" id="kLtv">&mdash;</div>
+      <div class="ks" id="kLtvS"></div>
+    </div>
+    <div class="kpi">
+      <div class="kl">CAC per User</div>
+      <div class="kv" id="kCac">&mdash;</div>
+      <div class="ks" id="kCacS"></div>
+    </div>
+    <div class="kpi">
+      <div class="kl">LTV : CAC</div>
+      <div class="kv" id="kR">&mdash;</div>
+      <div class="ks" id="kRS"></div>
+    </div>
+  </div>
+
+  <div id="insights" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px">
+    <h3 style="font-size:12px;font-weight:600;margin-bottom:8px">Key Takeaways</h3>
+    <ul id="insightsList" style="font-size:12px;color:var(--muted);padding-left:18px;line-height:1.8"></ul>
+  </div>
+
+  <div class="chart-card">
+    <h3>Monthly Revenue, Cost &amp; Net per Retained Paid User</h3>
+    <div class="chart-sub">Unit economics once a user converts &mdash; overage grows over time</div>
+    <canvas id="c1"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <h3>Expected Users Converted &amp; Retained</h3>
+    <div class="chart-sub">% of original free cohort that is active and paying each month</div>
+    <canvas id="c4"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <h3>Retention Curve (Post-Conversion)</h3>
+    <div class="chart-sub">% of converted users still active each month after converting</div>
+    <canvas id="c2"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <h3>Cumulative LTV per Free User</h3>
+    <div class="chart-sub">Expected cumulative profit per free user, discounted at WACC</div>
+    <canvas id="c3"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <h3>Sensitivity &#8212; LTV : CAC</h3>
+    <div class="chart-sub">&plusmn;50% swing on each lever vs. current assumptions</div>
+    <canvas id="c5" style="height:160px!important"></canvas>
+    <div id="tornadoNotes" style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7"></div>
+  </div>
+
+  <div class="dtl">
+    <h3>Per-User Breakdown</h3>
+    <table><thead><tr><th>Metric</th><th>Value</th></tr></thead>
+    <tbody id="tBody"></tbody></table>
+  </div>
+
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const f0 = n => n.toLocaleString('en-US',{maximumFractionDigits:0});
+const f2 = n => n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+const HORIZON = 60;
+
+function readInputs(){
+  const pm = +$('proMix').value/100;
+  return {
+    freeCogs:  +$('freeCogs').value,
+    convRate:  +$('convRate').value/100,
+    freeChurn: +$('freeChurn').value/100,
+    wacc:      +$('wacc').value/100,
+    proPrice:  +$('proPrice').value,
+    ppPrice:   +$('ppPrice').value,
+    proMix:    pm,
+    ppMix:     1-pm,
+    ovRate:    +$('ovRate').value/100,
+    ovAmt:     +$('ovAmt').value,
+    ovGrowth:  +$('ovGrowth').value/100,
+    breakage:  +$('breakage').value/100,
+    cogsPct:   +$('cogsPct').value/100,
+    eChurn:    +$('eChurn').value/100,
+    sChurn:    +$('sChurn').value/100,
+  };
+}
+
+// ── Model ────────────────────────────────────────────────────────────────
+function runModel(p){
+  const monthlyOvGrowth = Math.pow(1 + p.ovGrowth, 1/12);
+  const monthlyDiscount = Math.pow(1 + p.wacc, 1/12);
+
+  // Post-conversion economics at month k after conversion
+  function econAt(k){
+    const ovR = Math.min(p.ovRate * Math.pow(monthlyOvGrowth, k), 0.95);
+    const ovA = p.ovAmt * Math.pow(monthlyOvGrowth, k);
+    const segs = [
+      {w: p.proMix * (1-ovR),  spend: p.proPrice},
+      {w: p.proMix * ovR,      spend: p.proPrice + ovA},
+      {w: p.ppMix  * (1-ovR),  spend: p.ppPrice},
+      {w: p.ppMix  * ovR,      spend: p.ppPrice + ovA},
+    ];
+    let arpu=0, marginActive=0;
+    for(const s of segs){
+      arpu         += s.w * s.spend;
+      marginActive += s.w * (1 - p.cogsPct) * s.spend;
+    }
+    const margin = p.breakage * arpu + (1 - p.breakage) * marginActive;
+    return {arpu, margin, cost: arpu - margin};
+  }
+
+  const e0 = econAt(0);
+  const exitRate = p.convRate + p.freeChurn; // monthly rate of leaving free tier
+  const pEverConvert = exitRate > 0 ? p.convRate / exitRate : 0;
+  const expectedMonthsFree = exitRate > 0 ? 1 / exitRate : Infinity;
+
+  // Retention curve for paid users (post-conversion)
+  const paidRet = new Float64Array(HORIZON);
+  paidRet[0] = 1;
+  for(let m=1; m<HORIZON; m++){
+    paidRet[m] = paidRet[m-1] * (1 - (m<=3 ? p.eChurn : p.sChurn));
+  }
+
+  // Month-by-month simulation for one free user
+  const pFree       = new Float64Array(HORIZON); // P(still on free)
+  const newConv     = new Float64Array(HORIZON); // expected conversions this month
+  const freeCostMo  = new Float64Array(HORIZON); // free tier cost this month
+  const paidRevMo   = new Float64Array(HORIZON); // revenue from all prior converts
+  const paidCostMo  = new Float64Array(HORIZON); // cost from all prior converts
+  const paidProfMo  = new Float64Array(HORIZON); // profit from all prior converts
+  const paidActiveMo= new Float64Array(HORIZON); // expected active paid users
+  const monthlyPnl  = new Float64Array(HORIZON);
+  const cumPnl      = new Float64Array(HORIZON);
+
+  pFree[0] = 1;
+  for(let m=0; m<HORIZON; m++){
+    if(m > 0) pFree[m] = pFree[m-1] * (1 - exitRate);
+    pFree[m] = Math.max(pFree[m], 0);
+    newConv[m] = pFree[m] * p.convRate;
+    freeCostMo[m] = pFree[m] * p.freeCogs;
+
+    // Revenue/cost from all users who converted in prior months
+    for(let c=0; c<=m; c++){
+      const tenure = m - c; // months since this cohort converted
+      if(tenure >= HORIZON) continue;
+      const surviving = newConv[c] * paidRet[tenure];
+      const ec = econAt(tenure);
+      paidRevMo[m]   += surviving * ec.arpu;
+      paidCostMo[m]  += surviving * ec.cost;
+      paidProfMo[m]  += surviving * ec.margin;
+      paidActiveMo[m]+= surviving;
+    }
+
+    monthlyPnl[m] = paidProfMo[m] - freeCostMo[m];
+  }
+
+  cumPnl[0] = monthlyPnl[0];
+  for(let m=1; m<HORIZON; m++) cumPnl[m] = cumPnl[m-1] + monthlyPnl[m];
+
+  // Discounted versions
+  let totalFreeCostPV = 0;
+  let totalPaidProfPV = 0;
+  for(let m=0; m<HORIZON; m++){
+    const disc = Math.pow(monthlyDiscount, m);
+    totalFreeCostPV += freeCostMo[m] / disc;
+    totalPaidProfPV += paidProfMo[m] / disc;
+  }
+
+  const eLtv = totalPaidProfPV - totalFreeCostPV; // net expected value per free user
+  const cac  = totalFreeCostPV;                    // total expected cost to serve on free
+  const ltvCac = cac > 0 ? totalPaidProfPV / cac : Infinity;
+
+  // LTV if converted (for a user who converts at month 0)
+  let ltvConv = 0;
+  for(let m=0; m<HORIZON; m++) ltvConv += paidRet[m] * econAt(m).margin / Math.pow(monthlyDiscount, m);
+
+  // Break-even
+  let breakEven = null;
+  // Use discounted cumPnl for break-even
+  let cumDisc = 0;
+  for(let m=0; m<HORIZON; m++){
+    cumDisc += monthlyPnl[m] / Math.pow(monthlyDiscount, m);
+    if(cumDisc >= 0 && breakEven === null) breakEven = m + 1;
+  }
+
+  // Chart 1: per retained paid user (not probability-weighted)
+  const retRevMo  = new Float64Array(HORIZON);
+  const retCostMo = new Float64Array(HORIZON);
+  const retNetMo  = new Float64Array(HORIZON);
+  for(let m=0; m<HORIZON; m++){
+    const ec = econAt(m);
+    retRevMo[m]  = ec.arpu;
+    retCostMo[m] = ec.cost;
+    retNetMo[m]  = ec.margin;
+  }
+
+  // Chart 4: % of free cohort active & paying
+  const cohortPct = new Float64Array(HORIZON);
+  for(let m=0; m<HORIZON; m++) cohortPct[m] = paidActiveMo[m] * 100;
+
+  // Discounted cumulative P&L per user
+  const cumLtvDisc = new Float64Array(HORIZON);
+  cumLtvDisc[0] = monthlyPnl[0] / Math.pow(monthlyDiscount, 0);
+  for(let m=1; m<HORIZON; m++){
+    cumLtvDisc[m] = cumLtvDisc[m-1] + monthlyPnl[m] / Math.pow(monthlyDiscount, m);
+  }
+
+  return {
+    arpu: e0.arpu, margin: e0.margin, costToServe: e0.cost,
+    pEverConvert, expectedMonthsFree, cac, eLtv, ltvCac, ltvConv, breakEven,
+    totalPaidProfPV, totalFreeCostPV,
+    totalProfit: cumPnl[HORIZON-1],
+    paidRet:    Array.from(paidRet),
+    retRevMo:   Array.from(retRevMo),
+    retCostMo:  Array.from(retCostMo),
+    retNetMo:   Array.from(retNetMo),
+    cohortPct:  Array.from(cohortPct),
+    cumLtv:     Array.from(cumLtvDisc),
+    monthlyPnl: Array.from(monthlyPnl),
+    freeCostMo: Array.from(freeCostMo),
+    paidProfMo: Array.from(paidProfMo),
+  };
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────
+const baseOpts = yFmt => ({
+  responsive:true, maintainAspectRatio:false,
+  animation:{duration:120},
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8B949E',font:{size:9},maxTicksLimit:20}},
+    y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8B949E',font:{size:9},callback:yFmt||undefined}},
+  },
+});
+const $$ = v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:2});
+const pp = v=>v.toFixed(0)+'%';
+
+let ch1,ch2,ch3,ch4,ch5;
+
+function initCharts(){
+  ch1 = new Chart($('c1'),{
+    type:'bar',
+    data:{labels:[],datasets:[
+      {label:'Revenue',data:[],backgroundColor:'rgba(121,217,185,0.55)',stack:'s',order:2,barPercentage:.7},
+      {label:'Cost',   data:[],backgroundColor:'rgba(253,113,175,0.55)',stack:'s',order:2,barPercentage:.7},
+      {label:'Net',    data:[],type:'line',borderColor:'#7B68EE',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.3,order:1},
+    ]},
+    options:{
+      ...baseOpts($$),
+      plugins:{legend:{display:true,labels:{color:'#8B949E',font:{size:10},boxWidth:10,padding:10}}},
+      scales:{
+        x:{...baseOpts($$).scales.x,stacked:true},
+        y:{...baseOpts($$).scales.y,stacked:true},
+      },
+    },
+  });
+  ch2 = new Chart($('c2'),{
+    type:'line',
+    data:{labels:[],datasets:[{data:[],fill:true,borderColor:'#7B68EE',backgroundColor:'rgba(123,104,238,0.10)',borderWidth:2,pointRadius:0,tension:.3}]},
+    options:{...baseOpts(pp),scales:{...baseOpts(pp).scales,y:{...baseOpts(pp).scales.y,min:0,max:100}}},
+  });
+  ch3 = new Chart($('c3'),{
+    type:'bar',
+    data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+    options:baseOpts($$),
+  });
+  ch4 = new Chart($('c4'),{
+    type:'line',
+    data:{labels:[],datasets:[{data:[],fill:true,borderColor:'#49CCF9',backgroundColor:'rgba(73,204,249,0.10)',borderWidth:2,pointRadius:0,tension:.3}]},
+    options:{...baseOpts(pp),scales:{...baseOpts(pp).scales,y:{...baseOpts(pp).scales.y,min:0}}},
+  });
+  ch5 = new Chart($('c5'),{
+    type:'bar',
+    data:{labels:[],datasets:[
+      {label:'Downside',data:[],backgroundColor:'rgba(253,113,175,0.6)',barPercentage:.5},
+      {label:'Upside',  data:[],backgroundColor:'rgba(121,217,185,0.6)',barPercentage:.5},
+    ]},
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false, animation:{duration:120},
+      plugins:{
+        legend:{display:true,labels:{color:'#8B949E',font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+f2(ctx.raw)+'x'}},
+      },
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8B949E',font:{size:9},callback:v=>f2(v)+'x'}},
+        y:{grid:{display:false},ticks:{color:'#E6EDF3',font:{size:11}}},
+      },
+    },
+  });
+}
+
+function updateCharts(r,p){
+  const mo = Array.from({length:HORIZON},(_,i)=>i+1);
+
+  ch1.data.labels = mo;
+  ch1.data.datasets[0].data = r.retRevMo;
+  ch1.data.datasets[1].data = r.retCostMo.map(v=>-v);
+  ch1.data.datasets[2].data = r.retNetMo;
+  ch1.update();
+
+  ch2.data.labels = mo;
+  ch2.data.datasets[0].data = r.paidRet.map(v=>v*100);
+  ch2.update();
+
+  ch3.data.labels = mo;
+  ch3.data.datasets[0].data = r.cumLtv;
+  ch3.data.datasets[0].backgroundColor = r.cumLtv.map(v=>v<0?'#FD71AF':'#79D9B9');
+  ch3.update();
+
+  ch4.data.labels = mo;
+  ch4.data.datasets[0].data = r.cohortPct;
+  ch4.update();
+
+  // Tornado: +/-50% on key levers
+  const base = r.ltvCac;
+  const cap = v => isFinite(v) ? v : 50;
+  const levers = [
+    {label:'Monthly Conversion', key:'convRate',  unit:'%'},
+    {label:'Free COGS / Mo',     key:'freeCogs',  unit:'$'},
+    {label:'Free Tier Churn',    key:'freeChurn', unit:'%'},
+  ];
+  const labels=[],downs=[],ups=[],notes=[];
+  for(const lv of levers){
+    const el = $(lv.key);
+    const orig = +el.value;
+    const lo = Math.max(+el.min, orig * 0.5);
+    const hi = Math.min(+el.max, orig * 1.5);
+    el.value = lo; const rLo = runModel(readInputs());
+    el.value = hi; const rHi = runModel(readInputs());
+    el.value = orig;
+    const loVal = cap(rLo.ltvCac);
+    const hiVal = cap(rHi.ltvCac);
+    labels.push(lv.label);
+    downs.push(Math.min(loVal,hiVal) - cap(base));
+    ups.push(Math.max(loVal,hiVal) - cap(base));
+    const ltvPctUp = ((hiVal-cap(base))/cap(base))*100;
+    const ltvPctDn = ((loVal-cap(base))/cap(base))*100;
+    const fmtLo = lv.unit==='$'?'$'+f2(lo):f2(lo)+'%';
+    const fmtHi = lv.unit==='$'?'$'+f2(hi):f2(hi)+'%';
+    notes.push(
+      '<span style="color:var(--text);font-weight:600">'+lv.label+'</span>: '+
+      'At '+fmtLo+' &rarr; '+f2(Math.min(loVal,hiVal))+'x (<span style="color:'+(Math.min(ltvPctDn,ltvPctUp)<0?'var(--pink)':'var(--teal)')+'">'+
+      (Math.min(ltvPctDn,ltvPctUp)>=0?'+':'')+f0(Math.round(Math.min(ltvPctDn,ltvPctUp)))+'%</span>). '+
+      'At '+fmtHi+' &rarr; '+f2(Math.max(loVal,hiVal))+'x (<span style="color:'+(Math.max(ltvPctDn,ltvPctUp)<0?'var(--pink)':'var(--teal)')+'">'+
+      (Math.max(ltvPctDn,ltvPctUp)>=0?'+':'')+f0(Math.round(Math.max(ltvPctDn,ltvPctUp)))+'%</span>).'
+    );
+  }
+  const indices = [0,1,2].sort((a,b)=>(ups[b]-downs[b])-(ups[a]-downs[a]));
+  ch5.data.labels = indices.map(i=>labels[i]);
+  ch5.data.datasets[0].data = indices.map(i=>downs[i]);
+  ch5.data.datasets[1].data = indices.map(i=>ups[i]);
+  ch5.update();
+  $('tornadoNotes').innerHTML = indices.map(i=>notes[i]).join('<br>');
+}
+
+// ── UI ───────────────────────────────────────────────────────────────────
+function updateUI(r,p){
+  $('kLtv').textContent = '$'+f2(r.eLtv);
+  $('kLtv').style.color = r.eLtv>=0?'var(--teal)':'var(--pink)';
+  $('kLtvS').textContent = 'net expected value per free user (5yr)';
+
+  $('kCac').textContent = '$'+f2(r.cac);
+  $('kCac').style.color = 'var(--pink)';
+  $('kCacS').textContent = 'expected free tier cost (discounted)';
+
+  if(!isFinite(r.ltvCac)){
+    $('kR').textContent='\u221E'; $('kR').style.color='var(--green)'; $('kRS').textContent='no cost';
+  } else {
+    $('kR').textContent=f2(r.ltvCac)+'x';
+    $('kR').style.color = r.ltvCac>=3?'var(--green)':r.ltvCac>=1?'var(--yellow)':'var(--red)';
+    $('kRS').textContent = r.ltvCac>=3?'strong':r.ltvCac>=1?'marginal':'negative';
+  }
+
+  $('rArpu').textContent   = '$'+f2(r.arpu)+'/mo';
+  $('rMargin').textContent = '$'+f2(r.margin)+'/mo';
+  $('rPconv').textContent  = f2(r.pEverConvert*100)+'%';
+
+  const rows = [
+    ['Free COGS / Mo',          '$'+f2(p.freeCogs)],
+    ['Monthly Conversion Rate', f2(p.convRate*100)+'%'],
+    ['Free Tier Churn',         f2(p.freeChurn*100)+'%/mo'],
+    ['P(ever convert)',         f2(r.pEverConvert*100)+'%'],
+    ['Avg Months on Free',      f2(r.expectedMonthsFree)],
+    ['',''],
+    ['ARPU (post-conversion)',  '$'+f2(r.arpu)+'/mo'],
+    ['Breakage',                f0(p.breakage*100)+'%'],
+    ['Avg COGS % of Revenue',   f0(p.cogsPct*100)+'%'],
+    ['Margin / Paid User / Mo', '$'+f2(r.margin)+'/mo'],
+    ['COGS / Paid User / Mo',   '$'+f2(r.costToServe)+'/mo'],
+    ['LTV if Converted',        '$'+f2(r.ltvConv)],
+    ['',''],
+    ['Total Free Cost (PV)',    '$'+f2(r.totalFreeCostPV)],
+    ['Total Paid Profit (PV)',  '$'+f2(r.totalPaidProfPV)],
+    ['Net LTV per Free User',   '$'+f2(r.eLtv)],
+    ['LTV : CAC',               isFinite(r.ltvCac) ? f2(r.ltvCac)+'x' : 'N/A'],
+    ['Break-Even Month',        r.breakEven ? 'Month '+r.breakEven : 'Never'],
+    ['5-Year Net / User',       '$'+f2(r.totalProfit)],
+  ];
+  $('tBody').innerHTML = rows.map(([l,v])=>
+    l===''?'<tr class="sep"><td colspan="2"></td></tr>'
+          :'<tr><td>'+l+'</td><td>'+v+'</td></tr>'
+  ).join('');
+
+  // Key Takeaways
+  const insights = [];
+  const retAt12 = r.paidRet[Math.min(11, r.paidRet.length-1)];
+  const retAt36 = r.paidRet[Math.min(35, r.paidRet.length-1)];
+
+  if(r.eLtv < 0){
+    insights.push('At $'+f2(p.freeCogs)+'/mo free COGS and only '+f2(p.convRate*100)+'% monthly conversion, the free tier loses $'+f2(Math.abs(r.eLtv))+' per user over 5 years. The most impactful lever is <strong>conversion rate</strong> &mdash; doubling it roughly doubles paid revenue while free costs stay similar.');
+  } else if(r.ltvCac < 3){
+    insights.push('The free tier is marginally profitable at '+f2(r.ltvCac)+'x LTV:CAC. Only '+f2(r.pEverConvert*100)+'% of free users ever convert, spending an average of '+f2(r.expectedMonthsFree)+' months on free. Reducing free COGS or improving conversion would strengthen the case.');
+  } else {
+    insights.push('Strong free tier economics at '+f2(r.ltvCac)+'x &mdash; the '+f2(r.pEverConvert*100)+'% lifetime conversion rate generates $'+f2(r.totalPaidProfPV)+' in paid profit against $'+f2(r.cac)+' in free tier cost per user.');
+  }
+
+  insights.push('Each free user costs $'+f2(p.freeCogs)+'/mo and stays free for ~'+f2(r.expectedMonthsFree)+' months on average, totaling $'+f2(r.expectedMonthsFree*p.freeCogs)+' undiscounted investment. '+f0(Math.round(retAt12*100))+'% of converted users survive to month 12, '+f0(Math.round(retAt36*100))+'% to month 36.');
+
+  const yr5margin = r.retNetMo[r.retNetMo.length-1];
+  if(p.ovGrowth > 0){
+    insights.push('Overage growth ('+f0(p.ovGrowth*100)+'%/yr) pushes per-user margin from $'+f2(r.margin)+'/mo at conversion to $'+f2(yr5margin)+'/mo by year 5. Getting free users to adopt deeply before conversion primes the overage flywheel.');
+  } else {
+    insights.push('No overage growth assumed. Margin stays flat at $'+f2(r.margin)+'/mo. Encouraging deeper usage on the free tier could prime users for overage spend once paid.');
+  }
+
+  $('insightsList').innerHTML = insights.map(t=>'<li style="margin-bottom:4px">'+t+'</li>').join('');
+}
+
+function sync(){
+  $('dFreeCogs').textContent = '$'+f2(+$('freeCogs').value);
+  $('dConv').textContent     = $('convRate').value+'%';
+  $('dFreeChurn').textContent= $('freeChurn').value+'%';
+  $('dWacc').textContent     = $('wacc').value+'%';
+  $('dPro').textContent      = '$'+f0(+$('proPrice').value)+'/mo';
+  $('dPP').textContent       = '$'+f0(+$('ppPrice').value)+'/mo';
+  $('dMix').textContent      = $('proMix').value+'%';
+  $('dOvR').textContent      = $('ovRate').value+'%';
+  $('dOvA').textContent      = '$'+f0(+$('ovAmt').value)+'/mo';
+  $('dOvG').textContent      = $('ovGrowth').value+'%/yr';
+  $('dBrk').textContent      = $('breakage').value+'%';
+  $('dCogsPct').textContent  = $('cogsPct').value+'%';
+  $('dEC').textContent       = $('eChurn').value+'%';
+  $('dSC').textContent       = $('sChurn').value+'%';
+}
+
+function recalc(){
+  sync();
+  const p = readInputs();
+  const r = runModel(p);
+  updateUI(r,p);
+  updateCharts(r,p);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  initCharts();
+  document.querySelectorAll('input[type="range"]').forEach(el=>el.addEventListener('input',recalc));
+  recalc();
+});
+</script>
+</body>
+</html>
