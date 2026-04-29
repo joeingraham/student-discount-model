@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Discount Model — Copilot Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0D1117;
+  --surface:   #161B22;
+  --card:      #1C2128;
+  --border:    #30363D;
+  --text:      #E6EDF3;
+  --muted:     #8B949E;
+  --purple:    #7B68EE;
+  --blue:      #49CCF9;
+  --teal:      #79D9B9;
+  --pink:      #FD71AF;
+  --orange:    #FFB08E;
+  --green:     #3FB950;
+  --red:       #F85149;
+  --yellow:    #D29922;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.header {
+  background: linear-gradient(135deg, #1a1040 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--purple), var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header .subtitle { color: var(--muted); font-size: 13px; }
+
+/* ── Layout ───────────────────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: calc(100vh - 70px);
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(100vh - 70px);
+}
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+.section-title:first-child { margin-top: 0; }
+
+.control-group {
+  margin-bottom: 14px;
+}
+.control-group label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.control-group .value {
+  font-weight: 600;
+  color: var(--purple);
+  font-size: 13px;
+  min-width: 50px;
+  text-align: right;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--purple);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--purple);
+  cursor: pointer;
+  border: none;
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.toggle .slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.toggle input:checked + .slider { background: var(--purple); }
+.toggle input:checked + .slider::before { transform: translateX(18px); }
+
+/* Number input */
+input[type="number"] {
+  width: 70px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 13px;
+  text-align: right;
+}
+input[type="number"]:focus { border-color: var(--purple); outline: none; }
+
+/* Collapsible */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 0;
+}
+.collapsible-header .arrow {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.collapsible-header.open .arrow { transform: rotate(90deg); }
+.collapsible-body {
+  display: none;
+  padding-top: 4px;
+}
+.collapsible-body.open { display: block; }
+
+/* Scenario presets */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.preset-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.preset-btn:hover { border-color: var(--purple); background: #252d38; }
+.preset-btn.active { border-color: var(--purple); background: rgba(123,104,238,0.15); }
+
+/* ── Main content ─────────────────────────────────────────────────────── */
+.main { padding: 20px 24px; overflow-y: auto; max-height: calc(100vh - 70px); }
+
+/* Verdict banner */
+.verdict {
+  text-align: center;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border: 1px solid;
+}
+.verdict.worth-it  { background: rgba(63,185,80,0.1);  border-color: var(--green);  color: var(--green); }
+.verdict.marginal  { background: rgba(210,153,34,0.1); border-color: var(--yellow); color: var(--yellow); }
+.verdict.not-worth { background: rgba(248,81,73,0.1);  border-color: var(--red);    color: var(--red); }
+
+/* KPI cards */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.kpi-card .kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.kpi-card .kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+}
+.kpi-card .kpi-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Chart grid */
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.chart-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.chart-card canvas { width: 100% !important; }
+
+/* Summary table */
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.summary-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.summary-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.summary-table td:last-child { text-align: right; font-weight: 600; }
+.summary-table tr:hover { background: rgba(123,104,238,0.05); }
+
+/* Detail card */
+.detail-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.detail-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar {
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<div class="header">
+  <div>
+    <h1>Student Discount Model</h1>
+    <div class="subtitle">Copilot Pro — Trial economics & conversion analysis</div>
+  </div>
+</div>
+
+<!-- ── App Layout ──────────────────────────────────────────────────────── -->
+<div class="app">
+
+<!-- ── Sidebar: Controls ───────────────────────────────────────────────── -->
+<div class="sidebar">
+  <div class="section-title">Quick Scenarios</div>
+  <div class="presets">
+    <button class="preset-btn" onclick="applyPreset('free-open')">Free, Open</button>
+    <button class="preset-btn" onclick="applyPreset('free-cc-auto')">Free, CC + Auto</button>
+    <button class="preset-btn" onclick="applyPreset('discount-open')">$3.99, Open</button>
+    <button class="preset-btn" onclick="applyPreset('discount-cc')">$3.99, CC + Auto</button>
+    <button class="preset-btn" onclick="applyPreset('aggressive')">Aggressive</button>
+  </div>
+
+  <div class="section-title">Primary Toggles</div>
+
+  <div class="control-group">
+    <label>
+      Require Credit Card
+      <span class="toggle"><input type="checkbox" id="requireCC"><span class="slider"></span></span>
+    </label>
+  </div>
+
+  <div class="control-group">
+    <label>Student Price <span class="value" id="studentPriceVal">$0.00/mo</span></label>
+    <input type="range" id="studentPrice" min="0" max="10" step="0.5" value="0">
+  </div>
+
+  <div class="control-group">
+    <label>
+      Auto-Upsell After Trial
+      <span class="toggle"><input type="checkbox" id="autoUpsell" checked><span class="slider"></span></span>
+    </label>
+  </div>
+
+  <div class="control-group">
+    <label>Trial Duration <span class="value" id="trialDurationVal">3 mo</span></label>
+    <input type="range" id="trialDuration" min="1" max="12" step="1" value="3">
+  </div>
+
+  <!-- Advanced Parameters -->
+  <div class="collapsible-header" onclick="toggleAdvanced()" id="advHeader">
+    <span class="section-title" style="margin:0">Advanced Parameters</span>
+    <span class="arrow">▶</span>
+  </div>
+  <div class="collapsible-body" id="advBody">
+
+    <div class="control-group">
+      <label>Cohort Size <input type="number" id="cohortSize" value="10000" min="100" step="100"></label>
+    </div>
+    <div class="control-group">
+      <label>COGS / user / mo <span class="value" id="cogsVal">$7.50</span></label>
+      <input type="range" id="cogs" min="1" max="25" step="0.5" value="7.5">
+    </div>
+    <div class="control-group">
+      <label>Marketing CAC / user <span class="value" id="cacVal">$2.00</span></label>
+      <input type="range" id="marketingCAC" min="0" max="15" step="0.5" value="2">
+    </div>
+    <div class="control-group">
+      <label>Base Upsell Rate <span class="value" id="baseUpsellVal">8%</span></label>
+      <input type="range" id="baseUpsell" min="1" max="30" step="0.5" value="8">
+    </div>
+    <div class="control-group">
+      <label>Pro % of Converted <span class="value" id="proMixVal">70%</span></label>
+      <input type="range" id="proMix" min="0" max="100" step="5" value="70">
+    </div>
+    <div class="control-group">
+      <label>Overage Rate <span class="value" id="overageRateVal">15%</span></label>
+      <input type="range" id="overageRate" min="0" max="50" step="1" value="15">
+    </div>
+    <div class="control-group">
+      <label>Avg Overage $ <span class="value" id="overageAmtVal">$15</span></label>
+      <input type="range" id="overageAmt" min="0" max="50" step="1" value="15">
+    </div>
+    <div class="control-group">
+      <label>Pro Price <input type="number" id="proPrice" value="10" min="1" step="1"></label>
+    </div>
+    <div class="control-group">
+      <label>Pro+ Price <input type="number" id="proPlusPrice" value="39" min="1" step="1"></label>
+    </div>
+    <div class="control-group">
+      <label>Profit Margin <span class="value" id="profitMarginVal">40%</span></label>
+      <input type="range" id="profitMargin" min="10" max="80" step="1" value="40">
+    </div>
+    <div class="control-group">
+      <label>Profit Floor <input type="number" id="profitFloor" value="10" min="0" step="1"></label>
+    </div>
+    <div class="control-group">
+      <label>Early Churn (mo 1-3) <span class="value" id="earlyChurnVal">12%</span></label>
+      <input type="range" id="earlyChurn" min="1" max="30" step="0.5" value="12">
+    </div>
+    <div class="control-group">
+      <label>Steady Churn (mo 4+) <span class="value" id="steadyChurnVal">5%</span></label>
+      <input type="range" id="steadyChurn" min="0.5" max="15" step="0.5" value="5">
+    </div>
+    <div class="control-group">
+      <label>CC Signup Dampening <span class="value" id="ccDampenVal">45%</span></label>
+      <input type="range" id="ccDampen" min="10" max="90" step="5" value="45">
+    </div>
+    <div class="control-group">
+      <label>CC Conversion Lift <span class="value" id="ccLiftVal">25pp</span></label>
+      <input type="range" id="ccLift" min="0" max="40" step="1" value="25">
+    </div>
+    <div class="control-group">
+      <label>Auto-Upsell Lift <span class="value" id="autoLiftVal">15pp</span></label>
+      <input type="range" id="autoLift" min="0" max="30" step="1" value="15">
+    </div>
+    <div class="control-group">
+      <label>Paid Trial Lift <span class="value" id="paidLiftVal">10pp</span></label>
+      <input type="range" id="paidLift" min="0" max="25" step="1" value="10">
+    </div>
+    <div class="control-group">
+      <label>Projection Months <span class="value" id="projMonthsVal">36</span></label>
+      <input type="range" id="projMonths" min="12" max="60" step="6" value="36">
+    </div>
+  </div>
+</div>
+
+<!-- ── Main Dashboard ──────────────────────────────────────────────────── -->
+<div class="main">
+
+  <div class="verdict" id="verdict"></div>
+
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Converted Users</div>
+      <div class="kpi-value" id="kpiConverted">—</div>
+      <div class="kpi-sub" id="kpiConvertedSub"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">LTV : CAC</div>
+      <div class="kpi-value" id="kpiLtvCac">—</div>
+      <div class="kpi-sub" id="kpiLtvCacSub"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Break-Even</div>
+      <div class="kpi-value" id="kpiBreakEven">—</div>
+      <div class="kpi-sub">month</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Program Profit</div>
+      <div class="kpi-value" id="kpiProfit">—</div>
+      <div class="kpi-sub" id="kpiProfitSub"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">ROI</div>
+      <div class="kpi-value" id="kpiRoi">—</div>
+      <div class="kpi-sub" id="kpiRoiSub"></div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Cumulative P&L</h3>
+      <canvas id="chartCumPnl"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Active Users Over Time</h3>
+      <canvas id="chartUsers"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Retention Curve (Post-Conversion)</h3>
+      <canvas id="chartRetention"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Monthly P&L</h3>
+      <canvas id="chartMonthlyPnl"></canvas>
+    </div>
+  </div>
+
+  <div class="detail-card">
+    <h3>Full Breakdown</h3>
+    <table class="summary-table">
+      <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+      <tbody id="summaryBody"></tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt  = n => n.toLocaleString('en-US', {maximumFractionDigits: 0});
+const fmtD = (n, d=2) => n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+const fmtM = n => '$' + fmt(n);
+const fmtPct = n => fmtD(n, 1) + '%';
+
+// ── Read controls ────────────────────────────────────────────────────────
+function readConfig() {
+  const proMix = +$('proMix').value / 100;
+  return {
+    requireCC:       $('requireCC').checked,
+    studentPrice:    +$('studentPrice').value,
+    autoUpsell:      $('autoUpsell').checked,
+    trialDuration:   +$('trialDuration').value,
+    cohortSize:      +$('cohortSize').value,
+    cogs:            +$('cogs').value,
+    marketingCAC:    +$('marketingCAC').value,
+    baseUpsell:      +$('baseUpsell').value / 100,
+    proMix:          proMix,
+    proPlusMix:      1 - proMix,
+    overageRate:     +$('overageRate').value / 100,
+    overageAmt:      +$('overageAmt').value,
+    proPrice:        +$('proPrice').value,
+    proPlusPrice:    +$('proPlusPrice').value,
+    profitMargin:    +$('profitMargin').value / 100,
+    profitFloor:     +$('profitFloor').value,
+    earlyChurn:      +$('earlyChurn').value / 100,
+    steadyChurn:     +$('steadyChurn').value / 100,
+    earlyChurnMonths: 3,
+    ccDampen:        +$('ccDampen').value / 100,
+    ccLift:          +$('ccLift').value / 100,
+    autoLift:        +$('autoLift').value / 100,
+    paidLift:        +$('paidLift').value / 100,
+    durationPenalty: 0.01,
+    projMonths:      +$('projMonths').value,
+  };
+}
+
+// ── Model ────────────────────────────────────────────────────────────────
+function runModel(c) {
+  // Step 1: Effective signups after CC gate friction
+  const signups = c.requireCC
+    ? Math.floor(c.cohortSize * c.ccDampen)
+    : c.cohortSize;
+
+  // Step 2: Trial period — monthly user decay
+  let trialChurn = 0.08;
+  if (c.studentPrice > 0) trialChurn *= 0.60;
+  if (c.requireCC)        trialChurn *= 0.70;
+
+  const trialUsers = new Float64Array(c.trialDuration);
+  trialUsers[0] = signups;
+  for (let m = 1; m < c.trialDuration; m++) {
+    trialUsers[m] = trialUsers[m - 1] * (1 - trialChurn);
+  }
+  // Users who SURVIVE through the last trial month (fix: apply churn to last month)
+  const usersAtEnd = trialUsers[c.trialDuration - 1] * (1 - trialChurn);
+
+  // Trial costs & revenue
+  let trialCOGS = 0;
+  let trialRev  = 0;
+  for (let m = 0; m < c.trialDuration; m++) {
+    trialCOGS += trialUsers[m] * c.cogs;
+    trialRev  += trialUsers[m] * c.studentPrice;
+  }
+  const marketingCost = signups * c.marketingCAC;
+  const netTrialCost  = trialCOGS + marketingCost - trialRev;
+
+  // Step 3: Upsell rate
+  let upsell = c.baseUpsell;
+  if (c.requireCC) upsell += c.ccLift;
+  if (c.autoUpsell) {
+    upsell += c.requireCC ? c.autoLift : c.autoLift * 0.30;
+  }
+  if (c.studentPrice > 0) upsell += c.paidLift;
+  upsell -= Math.max(0, c.trialDuration - 1) * c.durationPenalty;
+  upsell = Math.max(0, Math.min(1, upsell));
+
+  const converted = usersAtEnd * upsell;
+
+  // Step 4: ARPU & profit per user (plan-mix weighted)
+  const segments = [
+    { weight: c.proMix * (1 - c.overageRate),     spend: c.proPrice },
+    { weight: c.proMix * c.overageRate,            spend: c.proPrice + c.overageAmt },
+    { weight: c.proPlusMix * (1 - c.overageRate),  spend: c.proPlusPrice },
+    { weight: c.proPlusMix * c.overageRate,         spend: c.proPlusPrice + c.overageAmt },
+  ];
+  let arpu = 0, profitPerUser = 0;
+  for (const s of segments) {
+    arpu += s.weight * s.spend;
+    profitPerUser += s.weight * Math.max(c.profitMargin * s.spend, c.profitFloor);
+  }
+
+  // Step 5: Retention curve
+  const postMonths = c.projMonths - c.trialDuration;
+  const retention = new Float64Array(postMonths);
+  retention[0] = 1;
+  for (let m = 1; m < postMonths; m++) {
+    const churn = m <= c.earlyChurnMonths ? c.earlyChurn : c.steadyChurn;
+    retention[m] = retention[m - 1] * (1 - churn);
+  }
+
+  // Monthly active converted users & their economics
+  const monthlyActive = new Float64Array(postMonths);
+  const monthlyRev    = new Float64Array(postMonths);
+  const monthlyProfit = new Float64Array(postMonths);
+  for (let m = 0; m < postMonths; m++) {
+    monthlyActive[m] = converted * retention[m];
+    monthlyRev[m]    = monthlyActive[m] * arpu;
+    monthlyProfit[m] = monthlyActive[m] * profitPerUser;
+  }
+
+  // Step 6: Full P&L timeline
+  const monthlyPnl     = new Float64Array(c.projMonths);
+  const cumulativePnl  = new Float64Array(c.projMonths);
+  const fullUsers      = new Float64Array(c.projMonths);
+
+  for (let m = 0; m < c.trialDuration; m++) {
+    let cost = trialUsers[m] * c.cogs;
+    let rev  = trialUsers[m] * c.studentPrice;
+    if (m === 0) cost += marketingCost;
+    monthlyPnl[m] = rev - cost;
+    fullUsers[m]  = trialUsers[m];
+  }
+  for (let m = 0; m < postMonths; m++) {
+    monthlyPnl[c.trialDuration + m] = monthlyProfit[m];
+    fullUsers[c.trialDuration + m]  = monthlyActive[m];
+  }
+
+  cumulativePnl[0] = monthlyPnl[0];
+  for (let m = 1; m < c.projMonths; m++) {
+    cumulativePnl[m] = cumulativePnl[m - 1] + monthlyPnl[m];
+  }
+
+  // Break-even
+  let breakEven = null;
+  for (let m = 0; m < c.projMonths; m++) {
+    if (cumulativePnl[m] >= 0) { breakEven = m + 1; break; }
+  }
+
+  // LTV
+  let ltvConverted = 0;
+  for (let m = 0; m < postMonths; m++) ltvConverted += retention[m] * profitPerUser;
+  // LTV per trial user accounts for both trial attrition and upsell rate
+  const ltvPerTrial = converted > 0 ? ltvConverted * converted / signups : 0;
+
+  // CAC
+  const cacPerTrial     = signups > 0   ? netTrialCost / signups   : Infinity;
+  const cacPerConverted = converted > 0 ? netTrialCost / converted : Infinity;
+  const ltvToCac        = cacPerConverted > 0 ? ltvConverted / cacPerConverted : Infinity;
+
+  // Totals
+  let totalPostProfit = 0;
+  for (let m = 0; m < postMonths; m++) totalPostProfit += monthlyProfit[m];
+  const totalProfit = totalPostProfit - netTrialCost;
+  const roi = netTrialCost > 0 ? (totalProfit / netTrialCost) * 100 : Infinity;
+
+  return {
+    signups, usersAtEnd, converted, upsell, trialChurn,
+    trialCOGS, marketingCost, trialRev, netTrialCost,
+    arpu, profitPerUser, ltvConverted, ltvPerTrial,
+    cacPerTrial, cacPerConverted, ltvToCac,
+    breakEven, totalProfit, roi,
+    monthlyPnl: Array.from(monthlyPnl),
+    cumulativePnl: Array.from(cumulativePnl),
+    fullUsers: Array.from(fullUsers),
+    retention: Array.from(retention),
+    trialUsers: Array.from(trialUsers),
+    monthlyActive: Array.from(monthlyActive),
+  };
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────
+const chartOpts = (yFmt) => ({
+  responsive: true,
+  maintainAspectRatio: true,
+  animation: { duration: 200 },
+  plugins: { legend: { display: false } },
+  scales: {
+    x: {
+      grid: { color: 'rgba(255,255,255,0.05)' },
+      ticks: { color: '#8B949E', font: { size: 10 } },
+    },
+    y: {
+      grid: { color: 'rgba(255,255,255,0.05)' },
+      ticks: {
+        color: '#8B949E',
+        font: { size: 10 },
+        callback: yFmt || (v => v),
+      },
+    },
+  },
+});
+
+const dollarFmt = v => '$' + v.toLocaleString('en-US', {maximumFractionDigits: 0});
+const pctFmt    = v => v.toFixed(0) + '%';
+const numFmt    = v => v.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+let chartCumPnl, chartUsers, chartRetention, chartMonthlyPnl;
+
+function initCharts() {
+  chartCumPnl = new Chart($('chartCumPnl'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+    options: chartOpts(dollarFmt),
+  });
+
+  chartUsers = new Chart($('chartUsers'), {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      data: [], fill: true,
+      borderColor: '#49CCF9',
+      backgroundColor: 'rgba(73,204,249,0.15)',
+      borderWidth: 2, pointRadius: 0, tension: 0.3,
+    }] },
+    options: chartOpts(numFmt),
+  });
+
+  chartRetention = new Chart($('chartRetention'), {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      data: [], fill: true,
+      borderColor: '#7B68EE',
+      backgroundColor: 'rgba(123,104,238,0.12)',
+      borderWidth: 2, pointRadius: 0, tension: 0.3,
+    }] },
+    options: {
+      ...chartOpts(pctFmt),
+      scales: {
+        ...chartOpts(pctFmt).scales,
+        y: { ...chartOpts(pctFmt).scales.y, min: 0, max: 100 },
+      },
+    },
+  });
+
+  chartMonthlyPnl = new Chart($('chartMonthlyPnl'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+    options: chartOpts(dollarFmt),
+  });
+}
+
+function updateCharts(r, c) {
+  const months = Array.from({length: c.projMonths}, (_, i) => i + 1);
+  const postMonths = Array.from({length: r.retention.length}, (_, i) => i + 1);
+
+  // Cumulative P&L
+  chartCumPnl.data.labels = months;
+  chartCumPnl.data.datasets[0].data = r.cumulativePnl;
+  chartCumPnl.data.datasets[0].backgroundColor = r.cumulativePnl.map(v =>
+    v < 0 ? '#FD71AF' : '#79D9B9');
+  chartCumPnl.update();
+
+  // Active users
+  chartUsers.data.labels = months;
+  chartUsers.data.datasets[0].data = r.fullUsers;
+  // Add trial-end annotation via a second dataset (vertical line effect)
+  if (chartUsers.data.datasets.length === 1) {
+    chartUsers.data.datasets.push({
+      data: [], borderColor: '#7B68EE', borderWidth: 1,
+      borderDash: [4, 4], pointRadius: 0, fill: false,
+    });
+  }
+  const trialLine = new Array(c.projMonths).fill(null);
+  const maxUsers = Math.max(...r.fullUsers);
+  trialLine[c.trialDuration - 1] = 0;
+  trialLine[c.trialDuration] = maxUsers;
+  chartUsers.data.datasets[1].data = trialLine;
+  chartUsers.update();
+
+  // Retention
+  chartRetention.data.labels = postMonths;
+  chartRetention.data.datasets[0].data = r.retention.map(v => v * 100);
+  chartRetention.update();
+
+  // Monthly P&L
+  chartMonthlyPnl.data.labels = months;
+  chartMonthlyPnl.data.datasets[0].data = r.monthlyPnl;
+  chartMonthlyPnl.data.datasets[0].backgroundColor = r.monthlyPnl.map(v =>
+    v < 0 ? '#FD71AF' : '#79D9B9');
+  chartMonthlyPnl.update();
+}
+
+// ── Update KPIs & Summary ────────────────────────────────────────────────
+function updateDashboard(r, c) {
+  // Verdict
+  const v = $('verdict');
+  if (r.ltvToCac >= 3) {
+    v.className = 'verdict worth-it';
+    v.textContent = `✅ WORTH IT — ${fmtD(r.ltvToCac,1)}x LTV:CAC with ${fmtM(r.totalProfit)} total profit`;
+  } else if (r.ltvToCac >= 1) {
+    v.className = 'verdict marginal';
+    v.textContent = `⚠️ MARGINAL — ${fmtD(r.ltvToCac,1)}x LTV:CAC. Viable but thin margins.`;
+  } else {
+    v.className = 'verdict not-worth';
+    v.textContent = `❌ NOT WORTH IT — ${fmtD(r.ltvToCac,1)}x LTV:CAC. Investment doesn't pay back.`;
+  }
+
+  // Handle edge case: net trial cost <= 0 (trial generates profit)
+  if (r.netTrialCost <= 0) {
+    v.className = 'verdict worth-it';
+    v.textContent = `✅ SELF-FUNDING — Trial generates net revenue. All conversions are pure upside.`;
+  }
+
+  // KPI cards
+  $('kpiConverted').textContent = fmt(Math.round(r.converted));
+  $('kpiConvertedSub').textContent = `${fmtPct(r.upsell * 100)} of ${fmt(Math.round(r.usersAtEnd))} survivors`;
+
+  if (r.netTrialCost <= 0 || !isFinite(r.ltvToCac)) {
+    $('kpiLtvCac').textContent = '∞';
+    $('kpiLtvCacSub').textContent = 'trial self-funds';
+  } else {
+    $('kpiLtvCac').textContent = fmtD(r.ltvToCac, 1) + 'x';
+    $('kpiLtvCacSub').textContent = `${fmtM(r.ltvConverted)} / ${fmtM(r.cacPerConverted)}`;
+  }
+
+  $('kpiBreakEven').textContent = r.breakEven ? `Mo ${r.breakEven}` : 'Never';
+
+  $('kpiProfit').textContent = fmtM(r.totalProfit);
+  $('kpiProfit').style.color = r.totalProfit >= 0 ? 'var(--teal)' : 'var(--pink)';
+  $('kpiProfitSub').textContent = `over ${c.projMonths} months`;
+
+  if (r.netTrialCost <= 0 || !isFinite(r.roi)) {
+    $('kpiRoi').textContent = '∞';
+    $('kpiRoiSub').textContent = 'self-funding';
+  } else {
+    $('kpiRoi').textContent = fmt(Math.round(r.roi)) + '%';
+    $('kpiRoi').style.color = r.roi >= 0 ? 'var(--teal)' : 'var(--pink)';
+    $('kpiRoiSub').textContent = 'return on investment';
+  }
+
+  // Summary table
+  const rows = [
+    ['Cohort Size',               fmt(c.cohortSize)],
+    ['Effective Signups',         fmt(r.signups)],
+    ['Trial Attrition (monthly)', fmtPct(r.trialChurn * 100)],
+    ['Users at Trial End',        fmt(Math.round(r.usersAtEnd))],
+    ['Upsell Rate',               fmtPct(r.upsell * 100)],
+    ['Converted to Paid',         fmt(Math.round(r.converted))],
+    ['—', '—'],
+    ['Trial COGS (total)',        fmtM(r.trialCOGS)],
+    ['Marketing Cost (total)',    fmtM(r.marketingCost)],
+    ['Trial Revenue (total)',     fmtM(r.trialRev)],
+    ['Net Trial Investment',      fmtM(r.netTrialCost)],
+    ['CAC / Trial User',          '$' + fmtD(r.cacPerTrial)],
+    ['CAC / Converted User',      r.converted > 0 ? '$' + fmtD(r.cacPerConverted) : 'N/A'],
+    ['—', '—'],
+    ['ARPU (monthly)',            '$' + fmtD(r.arpu)],
+    ['Profit / User / Mo',        '$' + fmtD(r.profitPerUser)],
+    ['LTV / Converted User',      '$' + fmtD(r.ltvConverted)],
+    ['LTV / Trial User',          '$' + fmtD(r.ltvPerTrial)],
+    ['LTV : CAC Ratio',           r.netTrialCost > 0 ? fmtD(r.ltvToCac, 1) + 'x' : 'N/A (self-funding)'],
+    ['—', '—'],
+    ['Break-Even Month',          r.breakEven ? `Month ${r.breakEven}` : 'Never'],
+    ['Total Program Profit',      fmtM(r.totalProfit)],
+    ['ROI',                       r.netTrialCost > 0 ? fmt(Math.round(r.roi)) + '%' : 'N/A (self-funding)'],
+  ];
+  $('summaryBody').innerHTML = rows.map(([label, val]) =>
+    label === '—'
+      ? `<tr><td colspan="2" style="padding:2px;border-bottom:1px solid var(--border)"></td></tr>`
+      : `<tr><td>${label}</td><td>${val}</td></tr>`
+  ).join('');
+}
+
+// ── Slider value display ─────────────────────────────────────────────────
+function syncDisplays() {
+  $('studentPriceVal').textContent = '$' + fmtD(+$('studentPrice').value) + '/mo';
+  $('trialDurationVal').textContent = $('trialDuration').value + ' mo';
+  $('cogsVal').textContent = '$' + fmtD(+$('cogs').value);
+  $('cacVal').textContent = '$' + fmtD(+$('marketingCAC').value);
+  $('baseUpsellVal').textContent = $('baseUpsell').value + '%';
+  $('proMixVal').textContent = $('proMix').value + '%';
+  $('overageRateVal').textContent = $('overageRate').value + '%';
+  $('overageAmtVal').textContent = '$' + $('overageAmt').value;
+  $('profitMarginVal').textContent = $('profitMargin').value + '%';
+  $('earlyChurnVal').textContent = $('earlyChurn').value + '%';
+  $('steadyChurnVal').textContent = $('steadyChurn').value + '%';
+  $('ccDampenVal').textContent = $('ccDampen').value + '%';
+  $('ccLiftVal').textContent = $('ccLift').value + 'pp';
+  $('autoLiftVal').textContent = $('autoLift').value + 'pp';
+  $('paidLiftVal').textContent = $('paidLift').value + 'pp';
+  $('projMonthsVal').textContent = $('projMonths').value;
+}
+
+// ── Master recalc ────────────────────────────────────────────────────────
+function recalc() {
+  syncDisplays();
+  const c = readConfig();
+  const r = runModel(c);
+  updateDashboard(r, c);
+  updateCharts(r, c);
+}
+
+// ── Presets ───────────────────────────────────────────────────────────────
+const PRESETS = {
+  'free-open':      { requireCC: false, studentPrice: 0,    autoUpsell: false, trialDuration: 3 },
+  'free-cc-auto':   { requireCC: true,  studentPrice: 0,    autoUpsell: true,  trialDuration: 3 },
+  'discount-open':  { requireCC: false, studentPrice: 3.99, autoUpsell: true,  trialDuration: 3 },
+  'discount-cc':    { requireCC: true,  studentPrice: 3.99, autoUpsell: true,  trialDuration: 3 },
+  'aggressive':     { requireCC: true,  studentPrice: 4.99, autoUpsell: true,  trialDuration: 1 },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  $('requireCC').checked     = p.requireCC;
+  $('studentPrice').value    = p.studentPrice;
+  $('autoUpsell').checked    = p.autoUpsell;
+  $('trialDuration').value   = p.trialDuration;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  recalc();
+}
+
+// ── Collapsible ──────────────────────────────────────────────────────────
+function toggleAdvanced() {
+  $('advHeader').classList.toggle('open');
+  $('advBody').classList.toggle('open');
+}
+
+// ── Bind events ──────────────────────────────────────────────────────────
+function init() {
+  initCharts();
+
+  // Bind all controls to recalc
+  document.querySelectorAll('input[type="range"], input[type="number"], input[type="checkbox"]')
+    .forEach(el => el.addEventListener('input', recalc));
+
+  recalc();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
