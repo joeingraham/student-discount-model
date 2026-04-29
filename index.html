@@ -145,7 +145,7 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
   <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">% of paying users with zero COGS (pay but don&rsquo;t use)</div>
   <div class="ctl">
     <label>Avg COGS % of Revenue <span class="v" id="dCogs">60%</span></label>
-    <input type="range" id="cogsPct" min="10" max="90" step="1" value="60">
+    <input type="range" id="cogsPct" min="10" max="90" step="1" value="80">
   </div>
   <div style="font-size:10px;color:var(--muted);margin-top:-6px;margin-bottom:8px">For active (non-breakage) users &mdash; lower = lighter usage</div>
   <div class="ctl">
@@ -186,10 +186,21 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
     </div>
   </div>
 
+  <div id="insights" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px">
+    <h3 style="font-size:12px;font-weight:600;margin-bottom:8px">Key Takeaways</h3>
+    <ul id="insightsList" style="font-size:12px;color:var(--muted);padding-left:18px;line-height:1.8"></ul>
+  </div>
+
   <div class="chart-card">
     <h3>Monthly Revenue, Cost &amp; Net per Retained User</h3>
     <div class="chart-sub">Unit economics for users who convert and stay &mdash; overage grows over time</div>
     <canvas id="c1"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <h3>Expected Users Upsold &amp; Retained</h3>
+    <div class="chart-sub">% of original trial cohort that is active and paying each month</div>
+    <canvas id="c4"></canvas>
   </div>
 
   <div class="chart-card">
@@ -205,13 +216,7 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
   </div>
 
   <div class="chart-card">
-    <h3>Expected Users Upsold &amp; Retained</h3>
-    <div class="chart-sub">% of original trial cohort that is active and paying each month</div>
-    <canvas id="c4"></canvas>
-  </div>
-
-  <div class="chart-card">
-    <h3>Sensitivity — LTV : CAC</h3>
+    <h3>Sensitivity &#8212; LTV : CAC</h3>
     <div class="chart-sub">&plusmn;50% swing on each lever vs. current assumptions, holding others constant</div>
     <canvas id="c5" style="height:160px!important"></canvas>
     <div id="tornadoNotes" style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7"></div>
@@ -562,6 +567,37 @@ function updateUI(r,p){
     l===''?'<tr class="sep"><td colspan="2"></td></tr>'
           :'<tr><td>'+l+'</td><td>'+v+'</td></tr>'
   ).join('');
+
+  // Key Takeaways
+  const insights = [];
+  // 1. Biggest lever
+  const trialMonths = p.trialDur;
+  const retAt12 = r.ret[Math.min(11, r.ret.length-1)];
+  const retAt36 = r.ret[Math.min(35, r.ret.length-1)];
+  const monthlyMarginMo0 = r.margin;
+
+  if(r.cac <= 0){
+    insights.push('The student price ($'+f2(p.studentPrice)+'/mo) covers the trial cost to serve — every conversion is pure upside. Focus on maximizing upsell rate.');
+  } else if(r.ltvCac < 1){
+    insights.push('At '+f2(r.ltvCac)+'x LTV:CAC, this deal loses money over 5 years. The biggest lever is <strong>upsell rate</strong> — moving from '+f2(p.upsell*100)+'% to '+f2(p.upsell*100*1.5)+'% would nearly close the gap. Consider requiring a credit card or auto-enrolling after trial.');
+  } else if(r.ltvCac < 3){
+    insights.push('At '+f2(r.ltvCac)+'x LTV:CAC, the deal is viable but thin. Every percentage point of upsell adds ~$'+f2(r.ltvConv/100)+' of expected LTV per trial user. Optimizing the conversion flow is the highest-leverage move.');
+  } else {
+    insights.push('Strong economics at '+f2(r.ltvCac)+'x LTV:CAC. The $'+f2(p.studentPrice)+'/mo student price offsets '+f0(Math.round(p.studentPrice/r.trialCostMo*100))+'% of trial COGS, keeping CAC low at $'+f2(r.cac)+' per user.');
+  }
+
+  // 2. Retention story
+  insights.push('Retention is the compounding engine: '+f0(Math.round(retAt12*100))+'% of converted users survive to month 12, '+f0(Math.round(retAt36*100))+'% to month 36. Reducing steady-state churn from '+f2(p.sChurn*100)+'% to '+f2(p.sChurn*100*0.5)+'% would increase LTV by ~'+f0(Math.round(((1/(p.sChurn*0.5))/(1/p.sChurn)-1)*100))+'%.');
+
+  // 3. Margin / overage growth
+  if(p.ovGrowth > 0){
+    const yr5margin = r.retNetMo[r.retNetMo.length-1];
+    insights.push('Overage growth ('+f0(p.ovGrowth*100)+'%/yr) drives margin per retained user from $'+f2(monthlyMarginMo0)+'/mo at conversion to $'+f2(yr5margin)+'/mo by year 5. Encouraging deeper adoption accelerates this flywheel.');
+  } else {
+    insights.push('No overage growth assumed — margin stays flat at $'+f2(monthlyMarginMo0)+'/mo. Driving deeper product adoption post-conversion would create a natural upsell ramp into overage and Pro+.');
+  }
+
+  $('insightsList').innerHTML = insights.map(t=>'<li style="margin-bottom:4px">'+t+'</li>').join('');
 }
 
 // ── Sync displays ────────────────────────────────────────────────────────
