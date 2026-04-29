@@ -205,6 +205,12 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
     <canvas id="c4"></canvas>
   </div>
 
+  <div class="chart-card">
+    <h3>Sensitivity — LTV : CAC</h3>
+    <div class="chart-sub">Impact of swinging each lever from low to high while holding others constant</div>
+    <canvas id="c5" style="height:160px!important"></canvas>
+  </div>
+
   <div class="dtl">
     <h3>Per-User Breakdown</h3>
     <table><thead><tr><th>Metric</th><th>Value</th></tr></thead>
@@ -363,7 +369,7 @@ const baseOpts = yFmt => ({
 const $$ = v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:2});
 const pp = v=>v.toFixed(0)+'%';
 
-let ch1,ch2,ch3,ch4;
+let ch1,ch2,ch3,ch4,ch5;
 
 function initCharts(){
   // Chart 1: Revenue / Cost / Net per retained user (stacked bars + line)
@@ -401,6 +407,28 @@ function initCharts(){
     data:{labels:[],datasets:[{data:[],fill:true,borderColor:'#49CCF9',backgroundColor:'rgba(73,204,249,0.10)',borderWidth:2,pointRadius:0,tension:.3}]},
     options:{...baseOpts(pp),scales:{...baseOpts(pp).scales,y:{...baseOpts(pp).scales.y,min:0}}},
   });
+  // Chart 5: Tornado sensitivity
+  ch5 = new Chart($('c5'),{
+    type:'bar',
+    data:{labels:[],datasets:[
+      {label:'Downside',data:[],backgroundColor:'rgba(253,113,175,0.6)',barPercentage:.5},
+      {label:'Upside',  data:[],backgroundColor:'rgba(121,217,185,0.6)',barPercentage:.5},
+    ]},
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false, animation:{duration:120},
+      plugins:{
+        legend:{display:true,labels:{color:'#8B949E',font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{label:ctx=>{
+          const v=ctx.raw; return ctx.dataset.label+': '+f2(v)+'x';
+        }}},
+      },
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8B949E',font:{size:9},callback:v=>f2(v)+'x'}},
+        y:{grid:{display:false},ticks:{color:'#E6EDF3',font:{size:11}}},
+      },
+    },
+  });
 }
 
 function updateCharts(r,p){
@@ -425,6 +453,37 @@ function updateCharts(r,p){
   ch4.data.labels = mo;
   ch4.data.datasets[0].data = r.cohortPct;
   ch4.update();
+
+  // Chart 5: Tornado — sweep each lever low/high, measure LTV:CAC delta from baseline
+  const base = r.ltvCac;
+  const cap = v => isFinite(v) ? v : 50; // cap infinity for display
+  const levers = [
+    {label:'Upsell Rate',     key:'upsellRate', lo:1,  hi:60, cur:+$('upsellRate').value},
+    {label:'Student Price',   key:'studentPrice',lo:0,  hi:10, cur:+$('studentPrice').value},
+    {label:'Discount Duration',key:'trialDur',   lo:1,  hi:12, cur:+$('trialDur').value},
+  ];
+  const labels=[],downs=[],ups=[];
+  for(const lv of levers){
+    // Save current, set low, run model, restore
+    const el = $(lv.key);
+    const orig = el.value;
+    el.value = lv.lo; const pLo = readInputs(); const rLo = runModel(pLo);
+    el.value = lv.hi; const pHi = readInputs(); const rHi = runModel(pHi);
+    el.value = orig;
+    const loVal = cap(rLo.ltvCac);
+    const hiVal = cap(rHi.ltvCac);
+    const low = Math.min(loVal, hiVal);
+    const high = Math.max(loVal, hiVal);
+    labels.push(lv.label);
+    downs.push(low - cap(base));
+    ups.push(high - cap(base));
+  }
+  // Sort by total swing descending
+  const indices = [0,1,2].sort((a,b)=>(ups[b]-downs[b])-(ups[a]-downs[a]));
+  ch5.data.labels = indices.map(i=>labels[i]);
+  ch5.data.datasets[0].data = indices.map(i=>downs[i]);
+  ch5.data.datasets[1].data = indices.map(i=>ups[i]);
+  ch5.update();
 }
 
 // ── UI update ────────────────────────────────────────────────────────────
